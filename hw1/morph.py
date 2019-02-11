@@ -105,6 +105,40 @@ def read_corpus(file_xml):
                         pr = post_ids[lemma[1]]
 
 
+def choose_lemma(word, prev):
+    if forms.get(word) is None:
+        return word, "NI"
+    lemmas = forms[word]
+    if len(lemmas) == 1:
+        return lemmas[0][0], lemmas[0][1]
+    else:
+        max_l = ""
+        max_p = ""
+        max_f = -1
+        for lemma in lemmas:
+            if lemma[1] == "CONJ" or lemma[1] == "PR":
+                max_l = lemma[0]
+                max_p = lemma[1]
+                break
+            if lemma_freqs.get(lemma[0]) is None:
+                continue
+            if prev == -1:
+                if max_f < sum(lemma_freqs[lemma[0]]):
+                    max_f = sum(lemma_freqs[lemma[0]])
+                    max_l = lemma[0]
+                    max_p = lemma[1]
+            else:
+                if max_f < lemma_freqs[lemma[0]][prev]:
+                    max_f = lemma_freqs[lemma[0]][prev]
+                    max_l = lemma[0]
+                    max_p = lemma[1]
+        if max_f == -1:
+            lemma = random.choice(lemmas)
+            return lemma[0], lemma[1]
+        else:
+            return max_l, max_p
+
+
 def process_text(file_txt):
     file = open(file_txt, "r")
     out = open("result.txt", "w+")
@@ -119,45 +153,21 @@ def process_text(file_txt):
             if forms.get(word) is None:
                 res += word + "=NI} "
             else:
-                lemmas = forms[word]
-                if len(lemmas) == 1:
-                    res += lemmas[0][0] + "=" + lemmas[0][1] + "} "
-                    pr = post_ids[lemmas[0][1]]
-                else:
-                    max_l = ""
-                    max_p = ""
-                    max_f = -1
-                    for lemma in lemmas:
-                        if lemma[1] == "CONJ" or lemma[1] == "PR":
-                            max_l = lemma[0]
-                            max_p = lemma[1]
-                            break
-                        if lemma_freqs.get(lemma[0]) is None:
-                            continue
-                        if pr == -1:
-                            if max_f < sum(lemma_freqs[lemma[0]]):
-                                max_f = sum(lemma_freqs[lemma[0]])
-                                max_l = lemma[0]
-                                max_p = lemma[1]
-                        else:
-                            if max_f < lemma_freqs[lemma[0]][pr]:
-                                max_f = lemma_freqs[lemma[0]][pr]
-                                max_l = lemma[0]
-                                max_p = lemma[1]
-                    if max_f == -1:
-                        lemma = random.choice(lemmas)
-                        res += lemma[0] + "=" + lemma[1] + "} "
-                        pr = post_ids[lemma[1]]
-                    else:
-                        res += max_l + "=" + max_p + "} "
-                        pr = post_ids[max_p]
+                lemma, post = choose_lemma(word, pr)
+                res += lemma + "=" + post + "} "
+                pr = post_ids[post]
         out.write(res + "\n")
 
     file.close()
     out.close()
 
-read_lemmas(xml_dict)
-read_forms(xml_dict)
-read_corpus(xml_corpus)
-process_text(text)
 
+def main():
+    read_lemmas(xml_dict)
+    read_forms(xml_dict)
+    read_corpus(xml_corpus)
+    process_text(text)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,3 +1,5 @@
+#!/usr/local/bin/python
+# -*- coding: utf-8 -*-
 import xml.etree.ElementTree as ET
 import random
 
@@ -13,7 +15,7 @@ post_ids = {"S" : 0, "A" : 1, "V" : 2, "PR" : 3, "CONJ" : 4, "ADV" : 5, "NI" : 6
 lemma_freqs = {}
 
 
-def read_lemmas(file_xml):
+def read_lemmas(file_xml='dict.opcorpora.xml'):
     file = open(file_xml, "r")
     for line in file:
         if "<lemmata>" in line:
@@ -48,7 +50,7 @@ def read_lemmas(file_xml):
     file.close()
 
 
-def read_forms(file_xml):
+def read_forms(file_xml='dict.opcorpora.xml'):
     file = open(file_xml, "r")
     for line in file:
         if "<lemmata>" in line:
@@ -73,7 +75,7 @@ def read_forms(file_xml):
     file.close()
 
 
-def read_corpus(file_xml):
+def read_corpus(file_xml='annot.opcorpora.no_ambig.xml'):
     tree = ET.parse(file_xml)
     root = tree.getroot()
     for text in root.findall('text'):

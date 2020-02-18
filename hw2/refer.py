@@ -1,5 +1,7 @@
 import json
 import hw1.morph as morph
+from gensim.models import KeyedVectors
+import numpy as np
 
 
 LIMIT = 300
@@ -14,7 +16,7 @@ end_punctuation_remover = str.maketrans({key: None for key in end_punctuation})
 anafors = ['этот', 'это', 'эта', 'эту', 'этих', 'этого', 'этим', 'этой', 'этими', 'этом', 'эти']
 anafors_punctuation = ['-', '—']
 silly_words = ['']
-with open("stop-words.txt") as f:
+with open("../hw2/stop-words.txt") as f:
     for line in f:
         silly_words.append(line.strip())
 
@@ -59,17 +61,8 @@ def get_sentence_end(text, start):
     return -1
 
 
-def find_anafor(words):
-    for word in words:
-        if word in anafors:
-            return word
-    return None
-
-
-def get_sorted_sentences(text, dict, bigrams):
+def get_sentences(text):
     sentences = []
-    weights = []
-
     start = 0
     while start != -1:
         end = get_sentence_end(text, start)
@@ -82,48 +75,10 @@ def get_sorted_sentences(text, dict, bigrams):
         else:
             sentence = text[start:].strip()
         start = end
-        sent_len += len(sentence)
-
-        weight = 0.
-        words = sentence.translate(end_punctuation_remover).split(" ")
         if len(sentence) < 3:
             continue
-        if len(words) < 4:
-            sentences.append(sentence)
-            weights.append(0)
-            continue
-
-        prev = ''
-        for word in words:
-            word, _ = morph.choose_lemma(word, -1)
-            if dict.get(word) is None:
-                continue
-            weight += dict[word]
-            pair = (prev, word) if prev < word else (word, prev)
-            if bigrams.get(pair) is None:
-                continue
-            weight += bigrams[pair]
-        weight = weight * 1. / len(sentence)
-        # weight = weight + 1. / 3. if sent_len <= text_len / 3. else weight
-
-        if find_anafor(words[:4]) is None:
-            sentences.append(sentence)
-            weights.append(weight)
-        else:
-            continue
-            '''anaf = find_anafor(words[:4])
-            flag = False
-            for punct in anafors_punctuation:
-                if sentence.find(anaf) > sentence.find(punct) != -1:
-                    flag = True
-                    break
-            if len(sentences) == 0 or flag:
-                sentences.append(sentence)
-                weights.append(weight)
-            else:
-                sentences[-1] = sentences[-1] + sentence
-                weights[-1] = (weights[-1] + weight) / 2.'''
-    return sentences, weights
+        sentences.append(sentence)
+    return sentences
 
 
 def preproocess_text(text):
@@ -133,14 +88,76 @@ def preproocess_text(text):
     return text
 
 
-def build_with_frequencies(text):
+def find_anafor(words):
+    for word in words:
+        if word in anafors:
+            return word
+    return None
+
+
+'''def make_anafored_sentence(anafor, sentence, weight, sentence_prev, weight_prev):
+    flag = False
+    for punct in anafors_punctuation:
+        if sentence.find(anafor) > sentence.find(punct) != -1:
+            flag = True
+            break
+    if flag
+    return sentence_prev + sentence, (weight_prev + weight) / 2.'''
+
+
+def get_closest_words(model, dict, top=3):
+    print("finished")
+    closest = {}
+    for word1 in dict.keys():
+        if not (word1 in model.vocab):
+            continue
+        words = dict.keys()
+        weights = []
+        for word2 in words:
+            if not (word2 in model.vocab):
+                continue
+            weights.append(model.similarity(word1, word2))
+        _, words = zip(*sorted(zip(weights, words), reverse=True))
+        closest[word1] = words[1:top + 1]
+    return closest
+
+
+def build_with_frequencies(model, text):
     text = preproocess_text(text)
     dict = build_dictionary(text)
+    closest_dict = get_closest_words(model, dict, 3)
     bigrams = build_bigrams(text)
-    sentences, weights = get_sorted_sentences(text, dict, bigrams)
+    sentences = get_sentences(text)
 
     if len(sentences) == 0:
         return text[:LIMIT]
+
+    weights = []
+    for sentence in sentences:
+        weight = 0.
+        words = sentence.translate(end_punctuation_remover).split(" ")
+        if len(words) < 4 or not (find_anafor(words[:4]) is None):
+            weights.append(0)
+            continue
+
+        prev = ''
+        for word in words:
+            word, _ = morph.choose_lemma(word, -1)
+            if dict.get(word) is None:
+                continue
+            weight += dict[word]
+            closest = closest_dict.get(word)
+            if not (closest is None):
+                for word2 in closest:
+                    weight += dict[word2] / 3.
+            pair = (prev, word) if prev < word else (word, prev)
+            if bigrams.get(pair) is None:
+                continue
+            weight += bigrams[pair]
+        weight = weight * 1. / len(sentence)
+        # weight = weight + 1. / 3. if sent_len <= text_len / 3. else weight
+        weights.append(weight)
+
     for i in range(len(weights) // 3):
         weights[i] += 1./2.
     weights, sentences = zip(*sorted(zip(weights, sentences), reverse=True))
@@ -163,13 +180,14 @@ def main():
     morph.read_lemmas(xml_dict)
     morph.read_forms(xml_dict)
     morph.read_corpus(xml_corpus)
+    model = KeyedVectors.load_word2vec_format('/home/katyakos/jb_news/VectorX_mediaplanning/base_topics/vectors/wiki.ru.vec')
 
     with open(input2) as f:
         data = json.load(f)
     n = len(data)
     referators = []
     for i in range(n):
-        referators.append(build_with_frequencies(data[i].lower()))
+        referators.append(build_with_frequencies(model, data[i].lower()))
 
     out = open("result.json", "w+")
     out.write("[\n")
